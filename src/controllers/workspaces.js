@@ -1,6 +1,13 @@
 ﻿const { randomUUID: uuidv4 } = require("crypto");
 const pool = require("../db");
 
+// Appends first 8 chars of the workspace ID to guarantee global uniqueness
+// even when two users pick the same workspace name.
+function makeSlug(name, id) {
+  const base = name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  return `${base}-${id.slice(0, 8)}`;
+}
+
 async function list(req, res) {
   const [rows] = await pool.query(
     "SELECT id, name, slug, created_at AS createdAt FROM workspaces WHERE owner_id = ? ORDER BY created_at ASC",
@@ -14,7 +21,7 @@ async function create(req, res) {
   if (!name || !name.trim()) return res.status(400).json({ error: "Workspace name is required." });
 
   const id    = uuidv4();
-  const slug  = name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  const slug  = makeSlug(name, id);
   const today = new Date().toISOString().slice(0, 10);
 
   await pool.query(
@@ -22,6 +29,19 @@ async function create(req, res) {
     [id, name.trim(), slug, req.user.id, today]
   );
   res.status(201).json({ id, name: name.trim(), slug, createdAt: today });
+}
+
+async function rename(req, res) {
+  const { id } = req.params;
+  const { name } = req.body;
+  if (!name || !name.trim()) return res.status(400).json({ error: "Workspace name is required." });
+
+  const [rows] = await pool.query("SELECT id FROM workspaces WHERE id = ? AND owner_id = ?", [id, req.user.id]);
+  if (rows.length === 0) return res.status(404).json({ error: "Workspace not found." });
+
+  const slug = makeSlug(name, id);
+  await pool.query("UPDATE workspaces SET name = ?, slug = ? WHERE id = ?", [name.trim(), slug, id]);
+  res.json({ ok: true, name: name.trim(), slug });
 }
 
 async function remove(req, res) {
@@ -37,4 +57,4 @@ async function remove(req, res) {
   res.json({ ok: true });
 }
 
-module.exports = { list, create, remove };
+module.exports = { list, create, rename, remove };

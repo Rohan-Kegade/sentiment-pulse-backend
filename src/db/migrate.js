@@ -7,6 +7,7 @@ const STATEMENTS = [
     email         VARCHAR(255) NOT NULL UNIQUE,
     password_hash VARCHAR(255) NOT NULL,
     role          ENUM('admin','member','viewer') NOT NULL DEFAULT 'admin',
+    plan          ENUM('free','pro','enterprise') NOT NULL DEFAULT 'free',
     avatar_color  VARCHAR(50)  NOT NULL DEFAULT 'indigo',
     created_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
@@ -15,9 +16,10 @@ const STATEMENTS = [
   `CREATE TABLE IF NOT EXISTS workspaces (
     id         VARCHAR(36)  NOT NULL PRIMARY KEY,
     name       VARCHAR(255) NOT NULL,
-    slug       VARCHAR(255) NOT NULL UNIQUE,
+    slug       VARCHAR(255) NOT NULL,
     owner_id   VARCHAR(36)  NOT NULL,
     created_at DATE         NOT NULL,
+    UNIQUE KEY uq_ws_owner_slug (owner_id, slug),
     FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
 
@@ -76,12 +78,27 @@ const STATEMENTS = [
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
 ];
 
+async function fixIndexes(conn) {
+  // Old schema had UNIQUE(slug) globally; correct constraint is UNIQUE(owner_id, slug).
+  try {
+    await conn.query("ALTER TABLE workspaces DROP INDEX slug");
+  } catch (_) {}
+  try {
+    await conn.query("ALTER TABLE workspaces ADD UNIQUE KEY uq_ws_owner_slug (owner_id, slug)");
+  } catch (_) {}
+  // Add plan column to existing users tables that were created without it.
+  try {
+    await conn.query("ALTER TABLE users ADD COLUMN plan ENUM('free','pro','enterprise') NOT NULL DEFAULT 'free' AFTER role");
+  } catch (_) {}
+}
+
 async function migrate() {
   const conn = await pool.getConnection();
   try {
     for (const sql of STATEMENTS) {
       await conn.query(sql);
     }
+    await fixIndexes(conn);
     console.log("Database tables verified / created.");
   } finally {
     conn.release();

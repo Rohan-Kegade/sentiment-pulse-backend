@@ -16,7 +16,7 @@ async function register(req, res) {
   const errors = validationResult(req);
   if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
 
-  const { name, email, password, tenantName } = req.body;
+  const { name, email, password } = req.body;
   const conn = await pool.getConnection();
   try {
     const [existing] = await conn.query("SELECT id FROM users WHERE email = ?", [email]);
@@ -33,22 +33,21 @@ async function register(req, res) {
       [userId, name, email, passwordHash, color]
     );
 
-    let workspaces = [];
-    if (tenantName) {
-      const wsId   = uuidv4();
-      const slug   = tenantName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-      const today  = new Date().toISOString().slice(0, 10);
-      await conn.query(
-        "INSERT INTO workspaces (id, name, slug, owner_id, created_at) VALUES (?, ?, ?, ?, ?)",
-        [wsId, tenantName, slug, userId, today]
-      );
-      workspaces = [{ id: wsId, name: tenantName, slug, createdAt: today }];
-    }
+    // Always create a default workspace on registration
+    const wsId   = uuidv4();
+    const wsName = "My Workspace";
+    const wsSlug = `my-workspace-${wsId.slice(0, 8)}`;
+    const today  = new Date().toISOString().slice(0, 10);
+    await conn.query(
+      "INSERT INTO workspaces (id, name, slug, owner_id, created_at) VALUES (?, ?, ?, ?, ?)",
+      [wsId, wsName, wsSlug, userId, today]
+    );
+    const workspaces = [{ id: wsId, name: wsName, slug: wsSlug, createdAt: today }];
 
     const token = signToken(userId);
     res.status(201).json({
       token,
-      user:       { id: userId, name, email, role: "admin", avatarColor: color },
+      user:       { id: userId, name, email, role: "admin", plan: "free", avatarColor: color },
       workspaces,
     });
   } finally {
@@ -79,14 +78,14 @@ async function login(req, res) {
   const token = signToken(user.id);
   res.json({
     token,
-    user: { id: user.id, name: user.name, email: user.email, role: user.role, avatarColor: user.avatar_color },
+    user: { id: user.id, name: user.name, email: user.email, role: user.role, plan: user.plan ?? "free", avatarColor: user.avatar_color },
     workspaces: wsRows,
   });
 }
 
 async function me(req, res) {
   const [rows] = await pool.query(
-    "SELECT id, name, email, role, avatar_color AS avatarColor FROM users WHERE id = ?",
+    "SELECT id, name, email, role, plan, avatar_color AS avatarColor FROM users WHERE id = ?",
     [req.user.id]
   );
   if (rows.length === 0) return res.status(404).json({ error: "User not found." });
