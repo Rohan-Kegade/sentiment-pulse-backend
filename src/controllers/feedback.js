@@ -1,5 +1,6 @@
 ﻿const { randomUUID: uuidv4 } = require("crypto");
 const pool = require("../db");
+const { safeJson } = require("../db");
 
 async function listBySurvey(req, res) {
   const { surveyId } = req.params;
@@ -13,7 +14,7 @@ async function listBySurvey(req, res) {
      ORDER BY f.received_at DESC`,
     [surveyId, req.user.id]
   );
-  const result = rows.map((r) => ({ ...r, tags: r.tags ? JSON.parse(r.tags) : [] }));
+  const result = rows.map((r) => ({ ...r, tags: safeJson(r.tags, []) }));
   res.json(result);
 }
 

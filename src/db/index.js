@@ -12,4 +12,13 @@ const pool = mysql.createPool({
   dateStrings: true,
 });
 
+// mysql2 auto-parses JSON columns into JS objects; this helper handles both
+// cases (already parsed object OR raw string) plus null gracefully.
+function safeJson(val, fallback) {
+  if (val == null) return fallback;
+  if (typeof val !== "string") return val; // already parsed by mysql2
+  try { return JSON.parse(val); } catch { return fallback; }
+}
+
 module.exports = pool;
+module.exports.safeJson = safeJson;

@@ -1,5 +1,6 @@
 ﻿const { randomUUID: uuidv4 } = require("crypto");
 const pool = require("../db");
+const { safeJson } = require("../db");
 
 async function assertWorkspaceOwner(workspaceId, userId) {
   const [rows] = await pool.query(
@@ -25,7 +26,7 @@ async function listByWorkspace(req, res) {
       "SELECT id, type, label, options, required, help_text AS helpText, max_rating AS maxRating, low_label AS lowLabel, high_label AS highLabel FROM questions WHERE survey_id = ? ORDER BY order_index ASC",
       [s.id]
     );
-    s.questions = qs.map((q) => ({ ...q, options: q.options ? JSON.parse(q.options) : [] }));
+    s.questions = qs.map((q) => ({ ...q, options: safeJson(q.options, []) }));
   }
 
   res.json(surveys);

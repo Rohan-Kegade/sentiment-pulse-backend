@@ -1,5 +1,6 @@
 ﻿const { randomUUID: uuidv4 } = require("crypto");
 const pool = require("../db");
+const { safeJson } = require("../db");
 
 const AVATAR_COLORS = ["indigo", "teal", "amber", "rose", "violet", "slate"];
 
@@ -22,8 +23,8 @@ async function list(req, res) {
   );
   const result = rows.map((r) => ({
     ...r,
-    workspaceAccess: r.workspaceAccess ? JSON.parse(r.workspaceAccess) : null,
-    surveyAccess:    r.surveyAccess    ? JSON.parse(r.surveyAccess)    : null,
+    workspaceAccess: safeJson(r.workspaceAccess, null),
+    surveyAccess:    safeJson(r.surveyAccess,    null),
   }));
   res.json(result);
 }
