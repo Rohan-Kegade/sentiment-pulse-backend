@@ -110,4 +110,9 @@ async function updateProfile(req, res) {
   res.json({ ok: true });
 }
 
-module.exports = { register, login, me, updateProfile };
+async function deleteAccount(req, res) {
+  await pool.query("DELETE FROM users WHERE id = ?", [req.user.id]);
+  res.status(204).end();
+}
+
+module.exports = { register, login, me, updateProfile, deleteAccount };

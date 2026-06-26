@@ -24,5 +24,6 @@ router.post(
 
 router.get("/me", requireAuth, ctrl.me);
 router.patch("/me", requireAuth, ctrl.updateProfile);
+router.delete("/me", requireAuth, ctrl.deleteAccount);
 
 module.exports = router;
